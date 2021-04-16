@@ -1,0 +1,48 @@
+---
+title: "Rainfall data 1908 - present"
+output: html_notebook
+---
+
+```{r pkgs, warning=FALSE}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(broom)
+library(plotly)
+library(gridExtra)
+library(nlme)
+library(lubridate)
+library(magrittr)
+library(ggthemes)
+library(forecast)
+library(tseries)
+```
+
+```{r}
+#Rainfall_1908.2017
+getwd()
+rain <- read_csv("./data/Rainfall_1908-2021.csv")
+glimpse(rain)
+dat.r<-rain %>%
+  select(1:13)
+
+```
+
+```{r}
+rain.dat<- 
+  dat.r %>%
+  mutate(YEAR = as.factor(year)) %>%
+  group_by(year) %>%
+  gather(month, rain_mm, 2:13)
+```
+
+```{r}
+data<- mutate(rain.dat, mo = month(Date, label = TRUE), yr = year(Date)) %>%
+            filter(Date >= "1908-01-01") %>%
+                group_by(yr, mo) %>% 
+                   summarise(prs = sum(rain_mm, na.rm = TRUE), .groups = 'drop')
+```
+
+
+

@@ -1,0 +1,130 @@
+---
+title: "Time Series rainfall data"
+output: html_notebook
+---
+
+https://rpubs.com/claytonglasser/evaluation-4-ways-forecast-precipitation-time-teries-annual-seasonality
+
+
+
+```{r}
+rain.ts<-data
+```
+
+```{r}
+ggplot(rain.ts, aes(yr, prs)) + 
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+
+#transform the data
+rain.ts$prcp_scaled <- scale(rain.ts$prs)
+```
+
+```{r}
+# normalize
+rain.ts$prcp_log <- log(rain.ts$prcp_scaled + sqrt(rain.ts$prcp_scaled ^ 2 + 1))
+
+```
+
+```{r}
+ggplot() + 
+  geom_point(data=rain.ts, aes(yr, prcp_log, colour="Transformed"),alpha = 0.33) +
+  geom_point(data=rain.ts, aes(yr, prs, colour="Original"), alpha = 0.33)  +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_colour_manual(name="Data Iteration", values=c(Original="blue", Transformed="black")) +
+  ylab("Precipitation") + xlab("Time")
+```
+
+```{r}
+#time series
+
+is.ts(rain.ts)
+rain_transformed_ts<- ts(rain.ts$prcp_log,
+  start = c(1908,1), end = c(2021,3), frequency =12)
+
+rain_transformed_ts[34] <- mean(rain_transformed_ts, na.rm = TRUE)
+rain_transformed_ts[97:120] <- mean(rain_transformed_ts, na.rm = TRUE)
+```
+
+```{r}
+#forecasting with AMIDE models
+rainfall_decomp1 = stl(rain_transformed_ts, s.window = "periodic")
+png(file = "./figures/patter_id.png")
+plot(rainfall_decomp1)
+dev.off()
+```
+
+```{r}
+#Deseasonalize the series
+rainfall_deseasonal1 <- seasadj(rainfall_decomp1) 
+plot(rainfall_deseasonal1)
+```
+
+```{r}
+#testing stationary
+adf.test(rainfall_deseasonal1, alternative = "stationary") 
+Acf(rainfall_deseasonal1, main='',lag.max=1000)
+Pacf(rainfall_deseasonal1, main='',lag.max=1000)
+```
+
+```{r}
+#Using auto.arima to automatically select optimal ARIMA p and q terms.
+
+rainfall_arima1 <- auto.arima(rainfall_deseasonal1, seasonal=FALSE, approximation = FALSE) 
+rainfall_arima1 
+checkresiduals(rainfall_arima1)
+
+```
+
+```{r}
+plot(forecast(rainfall_arima1, h=12)) 
+rainfall_arima1_w_seas <- auto.arima(rainfall_deseasonal1, seasonal=TRUE, approximation = FALSE) #create ARIMA model
+plot(forecast(rainfall_arima1_w_seas, h=12), xlab="Date", ylab="Precipitation (z-score)") #plot forecast
+```
+
+```{r}
+# Training set - 9 years
+rainfall_train1 <- subset(rainfall_deseasonal1, start = 1, end = 1354)
+plot(rainfall_train1)
+# Test set - 1 year
+rainfall_test1 <- subset(rainfall_deseasonal1, start = 1355, end = 1359)
+plot(rainfall_test1)
+
+```
+
+```{r}
+# Fit the model
+rainfall_train1_arima <- auto.arima(rainfall_train1, seasonal=TRUE, approximation = FALSE)
+
+# Forecast using the model 
+rainfall_fcast_test1 <- forecast(rainfall_train1_arima,h=12, seasonal=TRUE, approximation = FALSE)
+```
+
+
+```{r}
+plot(rainfall_fcast_test1, col="black",xlab="Date", ylab="Precipitation (z-score)") 
+lines(rainfall_test1,col="red") 
+
+rainfall_ets1 <- stl(rain_transformed_ts,s.window="periodic")
+plot(forecast(rainfall_ets1, h=12), xlab="Date", ylab="Precipitation (z-score)")
+```
+
+```{r}
+
+library(mFilter)
+rainfall_cffilter_trend  <- cffilter(rain.ts$prcp_log,pl=1,pu=1359,root=FALSE,drift=FALSE,
+                                        type=c("asymmetric"),
+                                        nfix=1,theta=1)
+png(file = "./figures/forecast.png")
+plot(rainfall_cffilter_trend) 
+
+```
+
+
+
+
+
+
